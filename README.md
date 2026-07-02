@@ -1,68 +1,46 @@
 # AI Lead Follow-up Automation using n8n
 
-An AI-powered lead management workflow built using **n8n**, **Groq LLM**, **Gmail**, and **Google Sheets**.
+An AI-powered lead management workflow built with **n8n**, **Groq LLM**, **Gmail**, and **Google Sheets**. It automatically captures leads, stores them in a lightweight CRM, sends AI-generated acknowledgment emails, performs timed follow-ups, checks lead status dynamically, and escalates inactive leads.
 
-The system automatically captures leads, stores them, sends acknowledgment emails, performs timed follow-ups, checks lead status dynamically, and escalates inactive leads.
+```text
+Trigger → AI → CRM → Email → Wait → Status Check → Follow-up → Escalation
+```
 
----
+## Table of Contents
 
-# Problem Statement
+- [Problem Statement](#problem-statement)
+- [Features](#features)
+- [Workflow Architecture](#workflow-architecture)
+- [Technologies Used](#technologies-used)
+- [How It Works](#how-it-works)
+- [Prerequisites](#prerequisites)
+- [Setup](#setup)
+- [Running the Workflow](#running-the-workflow)
+- [Testing](#testing)
+- [Troubleshooting](#troubleshooting)
+- [Known Limitations](#known-limitations)
+- [Security](#security)
+- [Roadmap](#roadmap)
+- [Author](#author)
 
-Leads are often not followed up quickly enough.
+## Problem Statement
 
-Delayed responses can reduce:
+Leads are often not followed up quickly enough. Delayed responses reduce meeting bookings, conversion rates, sales opportunities, and customer engagement. This workflow solves that by automating the full sequence: **lead capture → acknowledgment → follow-up → escalation**.
 
-- meeting bookings
-- conversion rates
-- sales opportunities
-- customer engagement
+Suitable for sales teams, agencies, freelancers, consultants, real estate businesses, coaching businesses, and customer onboarding systems.
 
-This workflow solves that problem by automating:
+## Features
 
-Lead capture → acknowledgment → follow-up → escalation
+- Lead capture via webhook (POST endpoint)
+- AI-generated acknowledgment and follow-up emails (Groq LLM)
+- Lead tracking in Google Sheets (lightweight CRM)
+- Timed follow-up sequences with dynamic status checks
+- Escalation alerts for inactive leads
+- End-to-end automation with no manual steps after lead capture
 
----
+> **Demo configuration:** The exported workflow uses **1-minute** wait times for faster testing. For production, change the Wait nodes to **1 hour** (follow-up) and **24 hours** (escalation).
 
-# Overview
-
-This workflow automatically:
-
-✅ Captures new leads through a webhook  
-✅ Stores lead data in Google Sheets (lightweight CRM)  
-✅ Sends AI-generated acknowledgment emails  
-✅ Waits 1 hour before checking lead status  
-✅ Sends AI-generated follow-up reminders  
-✅ Waits 24 hours before escalation  
-✅ Rechecks latest lead status dynamically  
-✅ Sends escalation alerts for inactive leads  
-
-Designed for:
-
-- Sales teams
-- Agencies
-- Freelancers
-- Consultants
-- Real estate businesses
-- Coaching businesses
-- Customer onboarding systems
-
----
-
-# Features
-
-- Lead capture automation
-- AI acknowledgment email generation
-- CRM tracking using Google Sheets
-- Timed follow-up sequences
-- Dynamic state-aware automation
-- Escalation workflows
-- Internal alerts
-- Groq LLM email generation
-- End-to-end automation
-
----
-
-# Workflow Architecture
+## Workflow Architecture
 
 ```text
 Lead Capture Webhook
@@ -75,380 +53,204 @@ Generate Acknowledgment Email
         ↓
 Send Acknowledgment Email
         ↓
-Wait 1 Hour Before Follow-up
+Wait (1 Minute Demo / 1 Hour Production)
         ↓
 Check Lead Status
         ↓
 Did Customer Respond?
      ├── YES → END
-     │
      └── NO
             ↓
      Generate Follow-up Email
             ↓
      Send Follow-up Reminder
             ↓
-     Wait 24 Hours Before Escalation
+     Wait (1 Minute Demo / 24 Hours Production)
             ↓
      Check Lead Status After 24 Hours
             ↓
      Did Customer Respond?
           ├── YES → END
-          │
           └── NO
                  ↓
           Send Escalation Alert
 ```
 
----
+![Workflow](03-ai-lead-followup-automation-n8n-workflow.png)
 
-# Workflow Screenshot
-
-## Full Workflow
-
-![Workflow](screenshots/lead-followup-workflow.png)
-
----
-
-# Technologies Used
+## Technologies Used
 
 | Tool | Purpose |
-|------|----------|
+|------|---------|
 | n8n | Workflow automation |
-| Groq LLM | AI email generation |
+| Groq LLM (`groq/compound-mini`) | AI email generation |
 | Gmail API | Sending emails |
 | Google Sheets | Lead tracking CRM |
 | Webhook | Lead capture endpoint |
 
----
+## How It Works
 
-# AI Processing
+**Lead capture.** The webhook receives a POST request with the lead's `name`, `email`, and `service`. The lead is stored in Google Sheets with `status = new` and a timestamp.
 
-Groq LLM generates:
+**Acknowledgment.** Groq LLM generates a short (under 80 words), professional acknowledgment email, which is sent immediately via Gmail.
 
-- acknowledgment emails
-- follow-up emails
+**Follow-up.** After the wait period, the workflow re-reads the lead's row from Google Sheets. If `status != responded`, an AI-generated follow-up reminder is sent.
 
-Model used:
+**Escalation.** After a second wait period, the status is checked again. If the lead still hasn't responded, an internal escalation alert is emailed with the lead's name, email, requested service, and submission timestamp.
 
-```text
-groq/compound-mini
-```
+**Lead states.** The `status` column supports `new`, `responded`, and `closed`. Reminders and escalations only fire while `status != responded`.
 
-Email generation requirements:
+## Prerequisites
 
-- Professional tone
-- Under 80 words
-- Friendly response
-- Context aware
+- Docker Desktop (or Node.js 18+)
+- n8n (Docker image or npm install)
+- Google account
+- Groq API key
+- Google Sheets OAuth credentials
+- Gmail OAuth credentials
 
----
+## Setup
 
-# Google Sheets CRM Structure
-
-Create sheet:
-
-```text
-Lead Tracker
-```
-
-Columns:
-
-```text
-name
-email
-service
-status
-created_at
-```
-
-Recommended additional columns:
-
-```text
-follow_up_sent
-escalated
-last_contacted
-```
-
----
-
-# Lead States
-
-Possible status values:
-
-```text
-new
-responded
-closed
-```
-
-Workflow checks:
-
-```text
-status != responded
-```
-
-before sending reminders.
-
----
-
-# Email Sequence
-
-## 1) Acknowledgment Email
-
-Sent immediately:
-
-```text
-Thanks for contacting us
-```
-
-Purpose:
-
-- confirm lead received
-- build trust
-- reduce response delay
-
----
-
-## 2) Follow-up Reminder
-
-Sent after:
-
-```text
-1 hour
-```
-
-if:
-
-```text
-status != responded
-```
-
----
-
-## 3) Escalation Alert
-
-Sent after:
-
-```text
-24 hours
-```
-
-if customer remains inactive.
-
-Escalation includes:
-
-- lead name
-- email
-- requested service
-- submission timestamp
-
----
-
-# Setup Instructions
-
-## 1. Clone Repository
+### 1. Clone the repository
 
 ```bash
-git clone https://github.com/your-username/ai-lead-followup-automation-n8n.git
-cd ai-lead-followup-automation-n8n
+git clone https://github.com/Jagadeesh0463/03-ai-lead-followup-automation-n8n.git
+cd 03-ai-lead-followup-automation-n8n
 ```
 
----
+### 2. Create the Google Sheet
 
-## 2. Import Workflow
+Create a sheet named **Lead Tracker** with these columns: `name`, `email`, `service`, `status`, `created_at`.
 
-Open n8n:
+Optional additional columns: `follow_up_sent`, `escalated`, `last_contacted`.
 
-```text
-Workflows
-↓
-Import
-↓
-Select workflow JSON
+### 3. Start n8n
+
+With Docker (recommended):
+
+```bash
+docker start n8n
+# or with Docker Compose:
+docker compose up -d
 ```
 
-Import:
-
-```text
-github_ready_lead_followup_workflow.json
-```
-
----
-
-## 3. Configure Credentials
-
-Connect:
-
-- Gmail OAuth
-- Google Sheets OAuth
-- Groq API
-
----
-
-## 4. Replace Placeholders
-
-Update:
-
-```text
-{{YOUR_EMAIL}}
-
-{{DOCUMENTID}}
-
-{{SHEETNAME}}
-
-{{WEBHOOK_PATH}}
-
-{{GMAILOAUTH2_ID}}
-
-{{GOOGLESHEETSOAUTH2API_ID}}
-
-{{GROQAPI_ID}}
-```
-
----
-
-## 5. Create Google Sheet
-
-Required columns:
-
-```text
-name
-email
-service
-status
-created_at
-```
-
----
-
-## 6. Activate Workflow
-
-Run:
+With npm:
 
 ```bash
 n8n start
 ```
 
-Activate workflow.
+Then open n8n at `http://localhost:5678`.
 
----
+### 4. Import the workflow
 
-# Example Webhook Payload
+In n8n, go to **Workflows → Import** and select `03-ai-lead-followup-automation-n8n.json`.
 
-```json
-{
-  "name": "Bhagya",
-  "email": "example@gmail.com",
-  "service": "AI Automation"
-}
-```
+### 5. Configure credentials
 
----
+This repository does **not** include OAuth credentials or API keys. Connect your own **Gmail OAuth**, **Google Sheets OAuth**, and **Groq API** credentials after import.
 
-# Testing Scenarios
+### 6. Replace placeholders
 
-## Scenario 1 — Customer does not respond
+Edit the imported nodes (or the JSON before import) and replace:
 
-Expected:
+| Placeholder | Location | Replace with |
+|-------------|----------|--------------|
+| `{{YOUR_EMAIL}}` | Send Escalation Alert node | Your escalation recipient address |
+| `{{DOCUMENTID}}` | All three Google Sheets nodes | Your Google Sheet document ID |
+| `{{YOUR_NAME}}` | Both email generation prompts | Your sign-off name |
 
-✅ acknowledgment email  
-✅ follow-up reminder  
-✅ escalation alert  
+The webhook path is already configured as `lead-capture` — no changes needed. Credential references are re-linked automatically when you connect your own accounts.
 
----
+### 7. Activate the workflow
 
-## Scenario 2 — Customer responds
+Turn ON the **Active** toggle at the top-right of the workflow. The Production Webhook URL is generated automatically by n8n once the workflow is activated — it does not exist while the workflow is inactive.
 
-Update sheet:
+## Running the Workflow
+
+Send a **POST** request to the Production Webhook URL:
 
 ```text
-status = responded
+http://localhost:5678/webhook/lead-capture
 ```
 
-Expected:
-
-Workflow stops.
-
-No:
-
-- reminder
-- escalation
-
----
-
-# Important Limitation
-
-Current workflow requires manually updating:
+For testing **before** activation, use the Test URL (only active while **Execute Workflow** is waiting in the editor):
 
 ```text
-status = responded
+http://localhost:5678/webhook-test/lead-capture
 ```
 
-Without updating status:
+> **The webhook accepts POST only.** Opening the URL in a browser sends a GET request and will not trigger the workflow — use curl, Postman, or a form that submits via POST.
 
-all leads eventually escalate.
+To expose the webhook publicly (e.g., for external forms), use a tunnel like ngrok:
 
-Future version:
+```bash
+ngrok http 5678
+```
 
-Automatic Gmail reply detection.
+Then use `https://YOUR-NGROK-URL/webhook/lead-capture`. If you restart ngrok, a new public URL is generated — update any webhook integrations, forms, or shared links, as old URLs will return a 404.
 
----
+### Example request
 
-# Security Notes
+```bash
+curl -X POST http://localhost:5678/webhook/lead-capture \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Bhagya","email":"example@gmail.com","service":"AI Automation"}'
+```
 
-Never commit:
+Verify success by checking:
 
-- Gmail credentials
-- Google Sheets credentials
-- Groq API keys
-- Personal email addresses
+- **Executions** page in n8n — a new execution appears and runs green
+- **Google Sheets** — a new row is added with the lead data
+- **Inbox** — the acknowledgment email is delivered to the lead's address
+- **Workflow** — execution enters the Wait node before the follow-up check
 
-Use placeholders in public repositories.
+## Testing
 
-`.gitignore` included to protect secrets.
+**Scenario 1 — customer does not respond.** Send a test lead and wait through both Wait periods. Expected: acknowledgment email, follow-up reminder, and escalation alert are all sent.
 
----
+**Scenario 2 — customer responds.** The workflow checks the `status` column in Google Sheets to decide whether to continue. To simulate a customer reply, manually change the lead's row to `status = responded`. The workflow then stops — no reminder or escalation emails are sent.
 
-# Future Improvements
+## Troubleshooting
 
-- Gmail reply detection
+### 404 — Webhook not registered
+
+Possible causes:
+
+- Workflow is not **Active**
+- Using the Test URL without clicking **Execute Workflow** first
+- Using an outdated ngrok URL (free ngrok URLs change on every restart)
+- Sending a GET request (e.g., opening the URL in a browser) instead of POST
+
+Solutions: activate the workflow, use the Production URL (`/webhook/lead-capture`) for normal operation, use the Test URL only while Execute Workflow is waiting, update ngrok URLs after every restart, and test with curl or Postman using POST.
+
+### Workflow runs but no email is sent
+
+Verify Gmail OAuth credentials are connected and authorized, check the Groq API key is valid and has quota, and inspect the failing node's error output under **Executions**.
+
+### Lead not appearing in Google Sheets
+
+Confirm the document ID placeholder was replaced and the sheet has the required columns: `name`, `email`, `service`, `status`, `created_at`.
+
+## Known Limitations
+
+The workflow currently requires manually updating `status = responded` in Google Sheets. Without this update, all leads eventually escalate. Automatic Gmail reply detection is planned (see [Roadmap](#roadmap)).
+
+## Security
+
+Never commit Gmail credentials, Google Sheets credentials, Groq API keys, or personal email addresses. This repository uses placeholders for all personal values, and a `.gitignore` is included to protect secrets.
+
+## Roadmap
+
+- Gmail reply detection (automatic `responded` status)
 - Slack alerts
-- Airtable CRM
-- HubSpot integration
-- Analytics dashboard
-- Lead scoring
+- Airtable / HubSpot CRM integration
+- Analytics dashboard and lead scoring
 - WhatsApp notifications
-- Retry mechanisms
-- Customer segmentation
+- Retry mechanisms and customer segmentation
 
----
-
-# Repository Structure
-
-```text
-.
-├── github_ready_lead_followup_workflow.json
-├── README.md
-├── .gitignore
-└── screenshots/
-      └── lead-followup-workflow.png
-```
-
----
-
-# Repository Name
-
-```text
-ai-lead-followup-automation-n8n
-```
-
----
-
-# Author
+## Author
 
 **Jagadeesh S**
 
-Built using:
-
-n8n + Groq + Gmail + Google Sheets
+Built with n8n + Groq + Gmail + Google Sheets.
